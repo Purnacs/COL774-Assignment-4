@@ -3,7 +3,7 @@ Assignment 4 Repository for COL 774
 Potential workflow:
 Individual Tasks:
 - Install torch library
-- <ul><li>[x] item1</li><li>[ ] item2</li></ul>
+  <ul><li>[x] item1</li><li>[ ] item2</li></ul>
 - [ ] [ ] Read the assignment problem statement
 - [ ] [ ] Make Kaggle Account
 - [ ] [ ] Join COL774 A4 Competition and access the dataset
