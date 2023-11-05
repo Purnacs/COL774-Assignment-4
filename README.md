@@ -6,9 +6,9 @@ Individual Tasks:
   <ul><li>[ ] Aman</li><li>[x] Purna</li></ul>
 - Read the assignment problem statement
   <ul><li>[ ] Aman</li><li>[ ] Purna</li></ul>
-- [ ] [ ] Make Kaggle Account
+- Make Kaggle Account
   <ul><li>[x] Aman</li><li>[x] Purna</li></ul>
-- [ ] [ ] Join COL774 A4 Competition and access the dataset
+- Join COL774 A4 Competition and access the dataset
   <ul><li>[ ] Aman</li><li>[ ] Purna</li></ul>
 
 Group Tasks:
