@@ -1,8 +1,8 @@
 # COL774-Assignment-4
 Assignment 4 Repository for COL 774
 
-Individual Tasks:
-  -   -- Add any individual tasks --
+Individual Tasks: <br />
+   -- Add any individual tasks --
 
 Group Tasks:
 - [ ] Week 1:
