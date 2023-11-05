@@ -6,7 +6,7 @@ Individual Tasks: <br />
 
 Group Tasks:
 - [ ] Week 1:
-  - [ ] Install Torch Library - 5/11/23
+  - [x] Install Torch Library - 5/11/23
   - [ ] Make a Kaggle account and Join the Competition - 5/11/23
   - [ ] Read Problem Statement - 5/11/23
   - [ ] Initial Discussions and Implementation - 6/11/23 to 7/11/23
