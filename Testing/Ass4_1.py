@@ -30,11 +30,12 @@ def convolution(x: torch.Tensor) -> torch.Tensor:
     result = torch.stack(results)
     return result
 
-def import_data(dir_path,type:str): # import data -> NOTE: sys.argv[1] would be path to "Dataset" , so the dir_name passed should be sys.argv[1] + "/SyntheticData/images" etc
+def import_data(dir_path,is_synthetic:bool = True,type:str = "train"): # import data -> NOTE: sys.argv[1] would be path to "Dataset" , so the dir_name passed should be sys.argv[1] + "/SyntheticData/images" etc
     '''
     Imports data from the given directory path and returns a pandas dataframe and torch.Tensor
     Args:
         dir_path: path to the folder containing the csv and images
+        is_synthetic: Synthetic/Handwritten Data
         type: type of data to be imported -> "train" or "test" or "val"
     Returns:
         i) pandas dataframe containing image name and corresponding output
@@ -46,8 +47,15 @@ def import_data(dir_path,type:str): # import data -> NOTE: sys.argv[1] would be 
     3) Convert images to torch.Tensor
     4) Return dataframe and torch.Tensor
     '''
-    df = pd.read_csv(dir_path + "/SyntheticData/" + type + ".csv")  # read csv file
-    df["image"] = df["image"].apply(lambda x: dir_path + "/SyntheticData/images/" + x)  # add path to image name
+    if is_synthetic:
+        data_path = "/SyntheticData/"
+        image_path = "images/"
+    else:
+        data_path = "/HandwrittenData/"
+        image_path = "images/" + type + "/"
+        type += "_hw"
+    df = pd.read_csv(dir_path + data_path + type + ".csv")  # read csv file
+    df["image"] = df["image"].apply(lambda x: dir_path + data_path + image_path + x)  # add path to image name
     images = []  # list to store images
     #Read images -> NOTE: images are read as torch.Tensor, resized to 224x224 and normalised'
     #NOTE: torchvision.transforms.ToTensor() converts the image to torch.Tensor 
@@ -74,7 +82,7 @@ if __name__ == '__main__':
     dir_path = sys.argv[1]
     # dirname = os.path.dirname(__file__)
     # dir_path = os.path.join(dirname,"../Dataset")
-    df,images = import_data(dir_path,"train")
+    df,images = import_data(dir_path,True,"train")
     # print(df)
     # print(images)
     print(convolution(images))
