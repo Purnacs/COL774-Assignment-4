@@ -17,6 +17,7 @@ class CNN:
         self.layer5 = nn.Conv2d(256,512,5)
 
         self.pooling = nn.AvgPool2d(2)
+        self.last_pooling = nn.AvgPool2d(3)
         self.relu = nn.ReLU()
         
     def single_example_cnn(self,x):
@@ -29,7 +30,8 @@ class CNN:
         x = self.layer4(x)
         x = self.pooling(self.relu(x))
         x = self.layer5(x)
-        return self.pooling(self.relu(x))
+        x = self.pooling(self.relu(x))
+        return self.last_pooling(self.relu(x))
     
     def fit_cnn(self,x):
         results = []
