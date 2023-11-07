@@ -28,3 +28,7 @@
     - Also we prbly need to save all the weights we get as we train everytime  and choose the weights that give max accuracy at the end of submission time ig
 - Idea for logging of 1) Check if the "tensor" file exists , if it does then directly read that instead of trying to convert images to tensor, if it does not then run the get_data function
 
+- Reading about more efficient libraries:
+  - Read about torch vanilla [here](https://towardsdatascience.com/from-pytorch-to-pytorch-lightning-a-gentle-introduction-b371b7caaf09)
+  - Torch vanilla [documentation](https://lightning.ai/docs/pytorch/stable/)
+
