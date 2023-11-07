@@ -16,7 +16,7 @@ class CNN:
         self.layer4 = nn.Conv2d(128,256,5)
         self.layer5 = nn.Conv2d(256,512,5)
 
-        self.pooling = nn.AvgPool1d(2)
+        self.pooling = nn.AvgPool2d(2)
         self.relu = nn.ReLU()
         
     def single_example_cnn(self,x):
