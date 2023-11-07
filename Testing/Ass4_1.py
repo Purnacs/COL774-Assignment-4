@@ -8,21 +8,50 @@ import os
 import sys
 import torchvision 
 
+class CNN:
+    def __init__(self):
+        self.layer1 = nn.Conv2d(3,32,5)
+        self.layer2 = nn.Conv2d(32,64,5)
+        self.layer3 = nn.Conv2d(64,128,5)
+        self.layer4 = nn.Conv2d(128,256,5)
+        self.layer5 = nn.Conv2d(256,512,5)
+
+        self.pooling = nn.AvgPool2d(2)
+        self.relu = nn.ReLU()
+        
+    def single_example_cnn(self,x):
+        x = self.layer1(x)
+        x = self.pooling(self.relu(x))
+        x = self.layer2(x)
+        x = self.pooling(self.relu(x))
+        x = self.layer3(x)
+        x = self.pooling(self.relu(x))
+        x = self.layer4(x)
+        x = self.pooling(self.relu(x))
+        x = self.layer5(x)
+        return self.pooling(self.relu(x))
+    
+    def fit_cnn(self,x):
+        results = []
+        for i in x:
+            results.append(self.single_example_cnn(i))
+        return torch.stack(results)
+
 def convolution(x: torch.Tensor) -> torch.Tensor:
     results = []
     for i in x:
         l1 = nn.Conv2d(3,32,5)(i)
         l1_rel = nn.ReLU()(l1)
-        l1_pool = nn.AvgPool1d(2)(l1_rel)
+        l1_pool = nn.AvgPool2d(2)(l1_rel)
         l2 = nn.Conv2d(32,64,5)(l1_pool)
         l2_rel = nn.ReLU()(l2)
-        l2_pool = nn.AvgPool1d(2)(l2_rel)
+        l2_pool = nn.AvgPool2d(2)(l2_rel)
         l3 = nn.Conv2d(64,128,5)(l2_pool)
         l3_rel = nn.ReLU()(l3)
-        l3_pool = nn.AvgPool1d(2)(l3_rel)
+        l3_pool = nn.AvgPool2d(2)(l3_rel)
         l4 = nn.Conv2d(128,256,5)(l3_pool)
         l4_rel = nn.ReLU()(l4)
-        l4_pool = nn.AvgPool1d(2)(l4_rel)
+        l4_pool = nn.AvgPool2d(2)(l4_rel)
         l5 = nn.Conv2d(256,512,5)(l4_pool)
         l5_rel = nn.ReLU()(l5)
         result = nn.AvgPool2d(3)(l5_rel)
@@ -85,4 +114,5 @@ if __name__ == '__main__':
     df,images = import_data(dir_path,True,"train")
     # print(df)
     # print(images)
-    print(convolution(images))
+    cnn = CNN()
+    print(cnn.fit_cnn(images))
