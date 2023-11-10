@@ -10,3 +10,6 @@
 
 - [Image to Tensor](https://www.geeksforgeeks.org/converting-an-image-to-a-torch-tensor-in-python/)
 - [Normalizing Images](https://www.geeksforgeeks.org/how-to-normalize-images-in-pytorch/)
+
+### Better Input Handling:
+- [DataSets & DataLoaders](https://pytorch.org/tutorials/beginner/basics/quickstart_tutorial.html)
