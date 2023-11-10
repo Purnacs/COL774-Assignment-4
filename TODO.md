@@ -11,6 +11,7 @@
   - [ ] Optional: Change name of Ass4_1.py to something more representative (lol)
   - [ ] Read about Word Embedding and vocabulary [here](https://pytorch.org/tutorials/beginner/nlp/word_embeddings_tutorial.html)
   - [ ] Read about LSTM Implementation [here](https://machinelearningmastery.com/lstm-for-time-series-prediction-in-pytorch/)
+  - [ ] Read about PyTorch NN tutorial [here] (https://pytorch.org/tutorials/beginner/basics/buildmodel_tutorial.html)
   - [ ] Define loss and backprop over CNN and RNN
   - [ ] Try out naive implementations to solve the problem statement
   - [ ] Look out for better models to increase accuracy
