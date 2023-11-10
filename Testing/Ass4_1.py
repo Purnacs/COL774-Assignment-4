@@ -52,6 +52,18 @@ class LSTM:
             i = flat(i)
             results.append(self.lstm(i.T)[0])
         return torch.stack(results)
+    
+class Actual_net:
+    def __init__(self):
+        self.cnn = CNN()
+        self.lstm = LSTM()
+    
+    def fit(self,x):
+        cnn_out = self.cnn.fit_cnn(x)
+        lstm_out = self.lstm.fit_lstm(cnn_out)
+        loss = nn.CrossEntropyLoss(lstm_out)
+        print(loss.forward(lstm_out,torch.zeros(lstm_out.shape[0],512)))
+        return lstm_out
 
 
 
@@ -110,10 +122,14 @@ if __name__ == '__main__':
     df,images = import_data(dir_path,True,"train")
     # print(df)
     # print(images)
-    cnn = CNN()
-    encode = cnn.fit_cnn(images)
-    print(encode.shape)
-    lstm = LSTM()
-    lstm_out = lstm.fit_lstm(encode)
-    print(lstm_out.shape)
-    print(lstm_out)
+    # cnn = CNN()
+    # encode = cnn.fit_cnn(images)
+    # print(encode.shape)
+    # lstm = LSTM()
+    # lstm_out = lstm.fit_lstm(encode)
+    # print(lstm_out.shape)
+    # print(lstm_out)
+
+    n_n = Actual_net()
+    out = n_n.fit(images)
+    print(out.shape)
