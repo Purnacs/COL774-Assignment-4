@@ -8,7 +8,7 @@ import os
 import sys
 import torchvision 
 
-class CNN:
+class CNN():
     def __init__(self):
         self.layer1 = nn.Conv2d(3,32,5)
         self.layer2 = nn.Conv2d(32,64,5)
@@ -38,6 +38,21 @@ class CNN:
         for i in x:
             results.append(self.single_example_cnn(i))
         return torch.stack(results)
+
+class LSTM:
+    def __init__(self):
+        self.lstm = nn.LSTM(512,512,1,batch_first=True)
+        self.relu = nn.ReLU()
+        self.linear = nn.Linear(512,1)
+
+    def fit_lstm(self,x):
+        results = []
+        for i in x:
+            flat = nn.Flatten()
+            i = flat(i)
+            results.append(self.lstm(i.T)[0])
+        return torch.stack(results)
+
 
 
 def import_data(dir_path,is_synthetic:bool = True,type:str = "train"): # import data -> NOTE: sys.argv[1] would be path to "Dataset" , so the dir_name passed should be sys.argv[1] + "/SyntheticData/images" etc
@@ -96,4 +111,9 @@ if __name__ == '__main__':
     # print(df)
     # print(images)
     cnn = CNN()
-    print(cnn.fit_cnn(images))
+    encode = cnn.fit_cnn(images)
+    print(encode.shape)
+    lstm = LSTM()
+    lstm_out = lstm.fit_lstm(encode)
+    print(lstm_out.shape)
+    print(lstm_out)
