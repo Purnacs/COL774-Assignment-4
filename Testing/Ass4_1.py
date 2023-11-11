@@ -7,6 +7,8 @@ import torch
 import os
 import sys
 import torchvision 
+import torchtext as text
+
 
 class CNN():
     def __init__(self):
@@ -65,6 +67,13 @@ class Actual_net:
         print(loss.forward(lstm_out,torch.zeros(lstm_out.shape[0],512)))
         return lstm_out
 
+
+
+def vocabulary(latex_data):
+    latex_data = latex_data.flatten()
+    tokenizer = text.data.utils.get_tokenizer('en')
+    vocab = text.vocab.build_vocab_from_iterator(map(tokenizer, latex_data))
+    return vocab
 
 
 def import_data(dir_path,is_synthetic:bool = True,type:str = "train"): # import data -> NOTE: sys.argv[1] would be path to "Dataset" , so the dir_name passed should be sys.argv[1] + "/SyntheticData/images" etc
@@ -130,6 +139,8 @@ if __name__ == '__main__':
     # print(lstm_out.shape)
     # print(lstm_out)
 
-    n_n = Actual_net()
-    out = n_n.fit(images)
-    print(out.shape)
+    formula = np.array(df["formula"])
+    vocab = vocabulary(formula)
+    # n_n = Actual_net()
+    # out = n_n.fit(images)
+    # print(out.shape)
