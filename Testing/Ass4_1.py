@@ -71,7 +71,7 @@ class Actual_net:
 
 def vocabulary(latex_data):
     latex_data = latex_data.flatten()
-    tokenizer = text.data.utils.get_tokenizer('en')
+    tokenizer = text.data.utils.get_tokenizer('basic_english')
     vocab = text.vocab.build_vocab_from_iterator(map(tokenizer, latex_data))
     return vocab
 
@@ -118,7 +118,7 @@ def import_data(dir_path,is_synthetic:bool = True,type:str = "train"): # import 
         #Normalise over image
         images.append(transform(image)) # append image to list
         n_images+=1
-        if n_images == 32:
+        if n_images == 10000:
             break
     images = torch.stack(images) # convert list of torch.Tensor to torch.Tensor
     return df,images
@@ -140,6 +140,8 @@ if __name__ == '__main__':
     # print(lstm_out)
 
     formula = np.array(df["formula"])
+    print(len(formula))
+    print(formula)
     vocab = vocabulary(formula)
     # n_n = Actual_net()
     # out = n_n.fit(images)
