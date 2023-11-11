@@ -6,8 +6,59 @@ import cv2
 import torch
 import os
 import sys
-import torchvision 
+from torchvision import transforms
+import sys
+from torch.utils.data import Dataset,DataLoader 
 import torchtext as text
+
+class LatexDataset(Dataset):
+    def __init__(self,df):
+        self.df = df
+        self.transform = transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor(),transforms.Normalize(mean=[0.0,0.0,0.0],std=[1.0,1.0,1.0])])
+    
+    def __getitem__(self,index):
+        row = self.df.iloc[index]
+        img_path = row['image']
+        img = Image.open(img_path)
+        img = self.transform(img)
+        return img,row['formula']
+    
+    def __len__(self):
+        return len(self.df)
+
+# TODO: Could update this function to be a bit more better
+def get_path(dir_path,is_synthetic,data_type):
+    if is_synthetic: 
+        data_path = "/SyntheticData/"
+        image_path = "images/"
+    else:
+        data_path = "/HandwrittenData/"
+        image_path = "images/" + data_type + "/"
+        data_type += "_hw"
+    csv_path = dir_path + data_path + data_type + ".csv"
+    img_path = dir_path + data_path + image_path
+    return csv_path,img_path
+
+def import_data(dir_path,is_synthetic:bool=True, data_type:str = "train",batch_size = 64):
+    '''
+    Imports data from the given directory and uses the LatexDataset class and the torch.DataLoader to create a dataloader iterator
+    Args:
+        dir_path: The parent directory path to dataset (specifically ./Dataset)
+        is_synthetic: Variable for determining whether to use synthetic or Handwritten Data
+        data_type: Variable for determining train, test or validation dataset to return
+    Returns:
+        A torch.DataLoader object containing the required Data ]in batches with shuffling(if training data)]
+    '''
+    is_shuffle = True if data_type == "train" else False
+
+    # The below code block is only because of the given dataset directory structure
+    csv_path,img_path = get_path(dir_path,is_synthetic,data_type)
+
+    df = pd.read_csv(csv_path) # read csv
+    df["image"] = df["image"].apply(lambda x: img_path + x) # add path to image name
+    dataset = LatexDataset(df)
+    dataloader = DataLoader(dataset,batch_size=batch_size,shuffle=is_shuffle,num_workers=4)
+    return dataloader, df
 
 
 class CNN():
@@ -76,73 +127,78 @@ def vocabulary(latex_data):
     return vocab
 
 
-def import_data(dir_path,is_synthetic:bool = True,type:str = "train"): # import data -> NOTE: sys.argv[1] would be path to "Dataset" , so the dir_name passed should be sys.argv[1] + "/SyntheticData/images" etc
-    '''
-    Imports data from the given directory path and returns a pandas dataframe and torch.Tensor
-    Args:
-        dir_path: path to the folder containing the csv and images
-        is_synthetic: Synthetic/Handwritten Data
-        type: type of data to be imported -> "train" or "test" or "val"
-    Returns:
-        i) pandas dataframe containing image name and corresponding output
-        ii) input for convolutional function -> torch.Tensor
-
-    Workflow:
-    1) Read CSV file and convert to pandas dataframe of image name and corresponding output
-    2) From image names in the dataframe, read images from the directory (specifically images would be in ./images folder of pwd)
-    3) Convert images to torch.Tensor
-    4) Return dataframe and torch.Tensor
-    '''
-    if is_synthetic:
-        data_path = "/SyntheticData/"
-        image_path = "images/"
-    else:
-        data_path = "/HandwrittenData/"
-        image_path = "images/" + type + "/"
-        type += "_hw"
-    df = pd.read_csv(dir_path + data_path + type + ".csv")  # read csv file
-    df["image"] = df["image"].apply(lambda x: dir_path + data_path + image_path + x)  # add path to image name
-    images = []  # list to store images
-    #Read images -> NOTE: images are read as torch.Tensor, resized to 224x224 and normalised'
-    #NOTE: torchvision.transforms.ToTensor() converts the image to torch.Tensor 
-    #NOTE: torchvision.transforms.Resize() resizes the image to the given size
-    #NOTE: torchvision.transforms.Normalize() normalises the image over the given mean and standard deviation
-    #NOTE: torchvision.transforms.Normalize() expects the image to be of shape (C,H,W) where C is the number of channels'
-    #NOTE: torchvision.transforms.Normalize() expects the mean and standard deviation to be of shape (C) where C is the number of channels'
-    #NOTE: torchvision.transforms.Normalize() expects the mean and standard deviation to be of type list or tuple'
-    
-    transform = torchvision.transforms.Compose([torchvision.transforms.ToTensor(),torchvision.transforms.Resize((224,224)),torchvision.transforms.Normalize(mean=[0.0,0.0,0.0],std=[1.0,1.0,1.0])])
-    n_images = 0
-    for i in df["image"]:
-        image = cv2.imread(i) # read image
-        #Normalise over image
-        images.append(transform(image)) # append image to list
-        n_images+=1
-        if n_images == 10000:
-            break
-    images = torch.stack(images) # convert list of torch.Tensor to torch.Tensor
-    return df,images
-
 '''Testing Area'''
 if __name__ == '__main__':
+    #NOTE: Use the following small codeblock for device usage (particularly when using HPC)
+    device = (
+        "cuda"
+        if torch.cuda.is_available()
+        else "mps"
+        if torch.backends.mps.is_available()
+        else "cpu"
+    )
+    print(f"Using {device} device")
     dir_path = sys.argv[1]
     # dirname = os.path.dirname(__file__)
     # dir_path = os.path.join(dirname,"../Dataset")
-    df,images = import_data(dir_path,True,"train")
+    tr_syn_dl,tr_syn_df = import_data(dir_path,True,"train",128)
+    t_syn,t_syn_df = import_data(dir_path,True,"test",128)
+    v_syn,v_syn_df= import_data(dir_path,True,"val",128)
+    tr_hw,tr_hw_df = import_data(dir_path,False,"train",128)
+    val_hw,v_hw_df = import_data(dir_path,False,"val",128)
     # print(df)
     # print(images)
-    # cnn = CNN()
-    # encode = cnn.fit_cnn(images)
+    num_epochs = 1
+    cnn = CNN()
+    for epoch in range(num_epochs):
+        for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
+            inputs = inputs.to(device)
+            # labels = labels.to(device)
+            print(cnn.fit_cnn(inputs).shape)
+            if i == 20:
+                break
     # print(encode.shape)
     # lstm = LSTM()
     # lstm_out = lstm.fit_lstm(encode)
     # print(lstm_out.shape)
     # print(lstm_out)
 
-    formula = np.array(df["formula"])
-    print(len(formula))
-    print(formula)
-    vocab = vocabulary(formula)
+    # formula = np.array(tr_syn_df["formula"])
+    # print(len(formula))
+    # print(formula)
+    # vocab = vocabulary(formula)
     # n_n = Actual_net()
     # out = n_n.fit(images)
     # print(out.shape)
+
+
+
+    # print(next(iter(tr_syn))) # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
+
+
+    '''
+    # NOTE: Each batch would be a 4D Tensor of size [batch_size, num_channels, height, width], whereas each image within it is a 3D tensor of size [num_channels, height, width]
+    
+    A Sample code for using the dataloader assuming some model
+    model = ...
+    criterion = ...
+    optimizer = ...
+    for epoch in range(num_epochs):
+        for i, (inputs, labels) in enumerate(dataloader):
+            # Move data to GPU if available
+            inputs = inputs.to(device)
+            labels = labels.to(device)
+
+            # Forward pass
+            outputs = model(inputs)
+            loss = criterion(outputs, labels)
+
+            # Backward pass and optimization
+            optimizer.zero_grad()
+            loss.backward()
+            optimizer.step()
+
+            # Print loss for every 128 steps
+            if i % 128 == 0:
+                print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(dataloader)}], Loss: {loss.item()}')
+    '''
