@@ -61,8 +61,9 @@ def import_data(dir_path,is_synthetic:bool=True, data_type:str = "train",batch_s
     return dataloader, df
 
 
-class CNN():
+class CNN(nn.Module):
     def __init__(self):
+        super(CNN, self).__init__()
         self.layer1 = nn.Conv2d(3,32,5)
         self.layer2 = nn.Conv2d(32,64,5)
         self.layer3 = nn.Conv2d(64,128,5)
@@ -92,8 +93,9 @@ class CNN():
             results.append(self.single_example_cnn(i))
         return torch.stack(results)
 
-class LSTM:
+class LSTM(nn.Module):
     def __init__(self):
+        super(LSTM, self).__init__()
         self.lstm = nn.LSTM(512,512,1,batch_first=True)
         self.relu = nn.ReLU()
         self.linear = nn.Linear(512,1)
@@ -106,8 +108,9 @@ class LSTM:
             results.append(self.lstm(i.T)[0])
         return torch.stack(results)
     
-class Actual_net:
+class Actual_net(nn.Module):
     def __init__(self):
+        super(Actual_net, self).__init__()
         self.cnn = CNN()
         self.lstm = LSTM()
     
@@ -137,6 +140,7 @@ if __name__ == '__main__':
         if torch.backends.mps.is_available()
         else "cpu"
     )
+    # device = "cpu"
     print(f"Using {device} device")
     dir_path = sys.argv[1]
     # dirname = os.path.dirname(__file__)
@@ -150,6 +154,7 @@ if __name__ == '__main__':
     # print(images)
     num_epochs = 1
     cnn = CNN()
+    cnn = cnn.to(device)
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
