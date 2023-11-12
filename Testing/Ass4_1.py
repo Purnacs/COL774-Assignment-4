@@ -88,37 +88,39 @@ class CNN(nn.Module):
         return self.last_pooling(self.relu(x))
     
     def fit_cnn(self,x):
-        results = []
-        for i in x:
-            results.append(self.single_example_cnn(i))
-        return torch.stack(results)
+        print("CNN")
+        res = self.single_example_cnn(x)
+        return res.reshape(128,1,1,512)
+        
 
-class LSTM(nn.Module):
-    def __init__(self):
+class LSTM:
+    def __init__(self,vocab_size,emb_dim,hid_dim):
         super(LSTM, self).__init__()
-        self.lstm = nn.LSTM(512,512,1,batch_first=True)
-        self.relu = nn.ReLU()
-        self.linear = nn.Linear(512,1)
+        self.emb = nn.Embedding(vocab_size,emb_dim,padding_idx=1)
+        self.lstm = nn.LSTM(emb_dim,hid_dim,num_layers=1,batch_first=True)
+        self.fc = nn.Linear(hid_dim,vocab_size)
 
+    # ?? error ??
     def fit_lstm(self,x):
-        results = []
-        for i in x:
-            flat = nn.Flatten()
-            i = flat(i)
-            results.append(self.lstm(i.T)[0])
-        return torch.stack(results)
+        data = x.reshape(128,512)
+        print("LSTM training")
+        emb = self.emb(data.to(torch.long))
+        print("embedding", emb.shape)
+        out,hidden = self.lstm(emb)
+        prediction = self.fc(out)
+        return prediction
+
     
-class Actual_net(nn.Module):
-    def __init__(self):
+class Actual_net (nn.Module):
+    def __init__(self,vocab):
         super(Actual_net, self).__init__()
         self.cnn = CNN()
-        self.lstm = LSTM()
+        self.lstm = LSTM(len(vocab),512,512)
     
     def fit(self,x):
         cnn_out = self.cnn.fit_cnn(x)
         lstm_out = self.lstm.fit_lstm(cnn_out)
         loss = nn.CrossEntropyLoss(lstm_out)
-        print(loss.forward(lstm_out,torch.zeros(lstm_out.shape[0],512)))
         return lstm_out
 
 
@@ -140,9 +142,10 @@ if __name__ == '__main__':
         if torch.backends.mps.is_available()
         else "cpu"
     )
-    # device = "cpu"
+    device = "cpu"
     print(f"Using {device} device")
     dir_path = sys.argv[1]
+    # batch_s = 128
     # dirname = os.path.dirname(__file__)
     # dir_path = os.path.join(dirname,"../Dataset")
     tr_syn_dl,tr_syn_df = import_data(dir_path,True,"train",128)
@@ -152,29 +155,21 @@ if __name__ == '__main__':
     val_hw,v_hw_df = import_data(dir_path,False,"val",128)
     # print(df)
     # print(images)
+    formula = np.array(tr_syn_df["formula"])
+    print(len(formula))
+    vocab = vocabulary(formula)
+    model = Actual_net(vocab)
+    model = model.to(device)
     num_epochs = 1
-    cnn = CNN()
-    cnn = cnn.to(device)
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
-            # labels = labels.to(device)
-            print(cnn.fit_cnn(inputs).shape)
-            if i == 20:
+            if i == 1:
                 break
-    # print(encode.shape)
-    # lstm = LSTM()
-    # lstm_out = lstm.fit_lstm(encode)
-    # print(lstm_out.shape)
-    # print(lstm_out)
-
-    # formula = np.array(tr_syn_df["formula"])
-    # print(len(formula))
-    # print(formula)
-    # vocab = vocabulary(formula)
-    # n_n = Actual_net()
-    # out = n_n.fit(images)
-    # print(out.shape)
+            # print(inputs)
+            out = model.fit(inputs)
+            print(out)
+            print("out", out.shape)
 
 
 
