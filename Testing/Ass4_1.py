@@ -103,7 +103,8 @@ class LSTM (nn.Module):
         data = x.reshape(128,512)
         emb = self.emb(data.to(torch.long))
         out,(ht,ct) = self.lstm(emb)
-        output = ht[-1,:,:]
+        output = out[:,-1]
+        # output = ht[-1,:,:]
         prediction = self.fc(output)
         return prediction
 
