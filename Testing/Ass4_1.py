@@ -70,7 +70,7 @@ class CNN(nn.Module):
         self.layer4 = nn.Conv2d(128,256,5)
         self.layer5 = nn.Conv2d(256,512,5)
 
-        self.pooling = nn.AvgPool2d(2)
+        self.pooling = nn.MaxPool2d(2)
         self.last_pooling = nn.AvgPool2d(3)
         self.relu = nn.ReLU()
         
@@ -90,21 +90,23 @@ class CNN(nn.Module):
     def fit_cnn(self,x):
         res = self.single_example_cnn(x)
         return res.reshape(128,1,1,512)
-        
 
 class LSTM (nn.Module):
     def __init__(self,vocab_size,emb_dim,hid_dim):
         super(LSTM, self).__init__()
-        self.emb = nn.Embedding(vocab_size,emb_dim,padding_idx=1)
-        self.lstm = nn.LSTM(emb_dim,hid_dim,num_layers=1,batch_first=True)
+        self.emb = nn.Embedding(vocab_size,emb_dim,padding_idx=0)
+        self.lstm = nn.LSTM(input_size = 512,hidden_size=512,num_layers=1,batch_first=True)
         self.fc = nn.Linear(hid_dim,vocab_size)
 
     # ?? error ??
     def fit_lstm(self,x):
         data = x.reshape(128,512)
         emb = self.emb(data.to(torch.long))
-        out,hidden = self.lstm(emb)
-        prediction = self.fc(out)
+        print(emb.shape)
+        out,(ht,ct) = self.lstm(emb)
+        output = ht[-1,:,:]
+        prediction = self.fc(output)
+        print("prediction", prediction.shape)
         return prediction
 
     
@@ -161,11 +163,6 @@ def embed_text(vocab,formulas,embedding):
         i = i+1
     return torch.stack(res)
 
-
-
-
-
-
 '''Testing Area'''
 if __name__ == '__main__':
     #NOTE: Use the following small codeblock for device usage (particularly when using HPC)
@@ -193,30 +190,31 @@ if __name__ == '__main__':
     vocab = vocabulary(formula)
     model = Actual_net(vocab)
     loss = nn.CrossEntropyLoss()
-    emb = nn.Embedding(512,469,padding_idx=1)
+    # emb = nn.Embedding(512,469,padding_idx=1)
     optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
     model = model.to(device)
     loss = loss.to(device)
-    emb = emb.to(device)
+    # emb = emb.to(device)
     num_epochs = 1
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
             # labels = torch.Tensor(labels).to(device)
-            encoding = embed_text(vocab,labels,emb)
+            # encoding = embed_text(vocab,labels,emb)
             # print("encoding", encoding.shape)
             print(i)
-            if i == 200:
+            if i == 5:
                 break
             out = model.fit(inputs)
+            print(out)
             # print(model.predict(out))
-            loss_out = loss(out,encoding)
-            optimizer.zero_grad()
-            loss_out.backward()
-            optimizer.step()
+            # loss_out = loss(out,encoding)
+            # optimizer.zero_grad()
+            # loss_out.backward()
+            # optimizer.step()
             # Print loss for every 128 steps
-            if i % 10 == 0:
-                print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
+            # if i % 10 == 0:
+                # print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
             
 
 
