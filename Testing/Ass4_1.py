@@ -89,7 +89,7 @@ class CNN(nn.Module):
     
     def fit_cnn(self,x):
         res = self.single_example_cnn(x)
-        return res.reshape(128,1,1,512)
+        return res.reshape(128,1,1,512) #reshape doesn't work on last set
 
 class LSTM (nn.Module):
     def __init__(self,vocab_size,emb_dim,hid_dim):
@@ -184,35 +184,35 @@ if __name__ == '__main__':
     val_hw,v_hw_df = import_data(dir_path,False,"val",128)
     # print(df)
     # print(images)
+    # formula = np.array(tr_syn_df["formula"])
     formula = np.array(tr_syn_df["formula"])
     vocab = vocabulary(formula)
     model = Actual_net(vocab)
     loss = nn.CrossEntropyLoss()
     # emb = nn.Embedding(512,469,padding_idx=1)
-    optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.1)
     model = model.to(device)
     loss = loss.to(device)
     # emb = emb.to(device)
-    num_epochs = 1
+    num_epochs = 2
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
             # labels = torch.Tensor(labels).to(device)
             encoding = embed_text(vocab,labels)
-            print(i)
-            if i == 1:
-                break
+            # print(i)
+            # if i == 1:
+            #     break
             out = model.fit(inputs)
             pred = nn.Softmax()(out)
             pred = pred.to(torch.float64)
-            print(pred,encoding)
+            # print(pred,encoding)
             loss_out = loss(out,encoding)
             optimizer.zero_grad()
             loss_out.backward()
             optimizer.step()
             # Print loss for every 128 steps
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
-            
 
 
 
