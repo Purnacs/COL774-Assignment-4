@@ -12,7 +12,8 @@
   - [ ] Read about Word Embedding and vocabulary [here](https://pytorch.org/tutorials/beginner/nlp/word_embeddings_tutorial.html)
   - [ ] Read about LSTM Implementation [here](https://machinelearningmastery.com/lstm-for-time-series-prediction-in-pytorch/)
   - [ ] Read about PyTorch NN tutorial [here] (https://pytorch.org/tutorials/beginner/basics/buildmodel_tutorial.html)
-  - [ ] Define loss and backprop over CNN and RNN
+  - [x] Define loss and backprop over CNN and RNN
+  - [ ] What we have is a classification model. Learn more about translation models and implement them
   - [ ] Try out naive implementations to solve the problem statement
   - [ ] Look out for better models to increase accuracy
 
