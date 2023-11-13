@@ -102,11 +102,9 @@ class LSTM (nn.Module):
     def fit_lstm(self,x):
         data = x.reshape(128,512)
         emb = self.emb(data.to(torch.long))
-        print(emb.shape)
         out,(ht,ct) = self.lstm(emb)
         output = ht[-1,:,:]
         prediction = self.fc(output)
-        print("prediction", prediction.shape)
         return prediction
 
     
@@ -149,17 +147,16 @@ def encode_text(vocab,formula):
     tokenizer = text.data.utils.get_tokenizer('basic_english')
     text_transform = lambda x: [vocab[token] for token in tokenizer(x)]
     trans = text_transform(formula)
-    arr = np.zeros(512)
+    arr = np.zeros(len(vocab))
     arr[trans] = 1
     return arr
 
-def embed_text(vocab,formulas,embedding):
+def embed_text(vocab,formulas):
     res = []
     i = 0
     for formula in formulas:
-        idx = torch.Tensor(encode_text(vocab,formula)).to(torch.long)
-        emb1 = embedding(idx)
-        res.append(emb1)
+        idx = torch.Tensor(encode_text(vocab,formula)).to(torch.float64)
+        res.append(idx)
         i = i+1
     return torch.stack(res)
 
@@ -200,21 +197,20 @@ if __name__ == '__main__':
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
             # labels = torch.Tensor(labels).to(device)
-            # encoding = embed_text(vocab,labels,emb)
-            # print("encoding", encoding.shape)
+            encoding = embed_text(vocab,labels)
             print(i)
-            if i == 5:
+            if i == 1:
                 break
             out = model.fit(inputs)
-            print(out)
-            # print(model.predict(out))
-            # loss_out = loss(out,encoding)
-            # optimizer.zero_grad()
-            # loss_out.backward()
-            # optimizer.step()
+            pred = nn.Softmax()(out)
+            pred = pred.to(torch.float64)
+            print(pred,encoding)
+            loss_out = loss(out,encoding)
+            optimizer.zero_grad()
+            loss_out.backward()
+            optimizer.step()
             # Print loss for every 128 steps
-            # if i % 10 == 0:
-                # print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
+            print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
             
 
 
