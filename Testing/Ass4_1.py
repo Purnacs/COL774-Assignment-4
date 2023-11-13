@@ -88,12 +88,11 @@ class CNN(nn.Module):
         return self.last_pooling(self.relu(x))
     
     def fit_cnn(self,x):
-        print("CNN")
         res = self.single_example_cnn(x)
         return res.reshape(128,1,1,512)
         
 
-class LSTM:
+class LSTM (nn.Module):
     def __init__(self,vocab_size,emb_dim,hid_dim):
         super(LSTM, self).__init__()
         self.emb = nn.Embedding(vocab_size,emb_dim,padding_idx=1)
@@ -103,9 +102,7 @@ class LSTM:
     # ?? error ??
     def fit_lstm(self,x):
         data = x.reshape(128,512)
-        print("LSTM training")
         emb = self.emb(data.to(torch.long))
-        print("embedding", emb.shape)
         out,hidden = self.lstm(emb)
         prediction = self.fc(out)
         return prediction
@@ -122,7 +119,22 @@ class Actual_net (nn.Module):
         lstm_out = self.lstm.fit_lstm(cnn_out)
         loss = nn.CrossEntropyLoss(lstm_out)
         return lstm_out
+    
+    def predict(self,lstm_out):
+        # cnn_out = self.cnn.fit_cnn(x)
+        # lstm_out = self.lstm.fit_lstm(cnn_out)
+        _, top_indices = lstm_out.topk(1, dim=-1)
+    # Decode top_indices to get formula
+        formula = decode_text(vocab, top_indices.squeeze().tolist())
+        return formula
 
+def decode_text(vocab, indices):
+    # Convert indices to tokens
+    tokens = [vocab[i] for i in indices]
+    # Join tokens into a string with LaTeX formatting
+    formula = ' '.join(tokens)
+    return formula
+        
 
 
 def vocabulary(latex_data):
@@ -130,6 +142,28 @@ def vocabulary(latex_data):
     tokenizer = text.data.utils.get_tokenizer('basic_english')
     vocab = text.vocab.build_vocab_from_iterator(map(tokenizer, latex_data))
     return vocab
+
+def encode_text(vocab,formula):
+    tokenizer = text.data.utils.get_tokenizer('basic_english')
+    text_transform = lambda x: [vocab[token] for token in tokenizer(x)]
+    trans = text_transform(formula)
+    arr = np.zeros(512)
+    arr[trans] = 1
+    return arr
+
+def embed_text(vocab,formulas,embedding):
+    res = []
+    i = 0
+    for formula in formulas:
+        idx = torch.Tensor(encode_text(vocab,formula)).to(torch.long)
+        emb1 = embedding(idx)
+        res.append(emb1)
+        i = i+1
+    return torch.stack(res)
+
+
+
+
 
 
 '''Testing Area'''
@@ -156,20 +190,34 @@ if __name__ == '__main__':
     # print(df)
     # print(images)
     formula = np.array(tr_syn_df["formula"])
-    print(len(formula))
     vocab = vocabulary(formula)
     model = Actual_net(vocab)
+    loss = nn.CrossEntropyLoss()
+    emb = nn.Embedding(512,469,padding_idx=1)
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
     model = model.to(device)
+    loss = loss.to(device)
+    emb = emb.to(device)
     num_epochs = 1
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
-            if i == 1:
+            # labels = torch.Tensor(labels).to(device)
+            encoding = embed_text(vocab,labels,emb)
+            # print("encoding", encoding.shape)
+            print(i)
+            if i == 200:
                 break
-            # print(inputs)
             out = model.fit(inputs)
-            print(out)
-            print("out", out.shape)
+            # print(model.predict(out))
+            loss_out = loss(out,encoding)
+            optimizer.zero_grad()
+            loss_out.backward()
+            optimizer.step()
+            # Print loss for every 128 steps
+            if i % 10 == 0:
+                print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
+            
 
 
 
