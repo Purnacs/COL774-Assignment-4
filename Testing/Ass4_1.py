@@ -1,20 +1,40 @@
+import os
+import sys
+import signal
+import time
 import pandas as pd
 import numpy as np
 import torch.nn as nn
 from PIL import Image 
-import cv2
 import torch
-import os
-import sys
 from torchvision import transforms
 import sys
 from torch.utils.data import Dataset,DataLoader 
 import torchtext as text
 
+
+def save_model_and_exit(model, filename="model.pth"):
+    try:
+        torch.save(model.state_dict(), filename)
+        print("Model saved.")
+        sys.stdout.flush()  # Flush the output buffer
+    except Exception as e:
+        print(f"Error saving model: {e}")
+        sys.stdout.flush()  # Flush the output buffer
+    finally:
+        print("Exiting.")
+        sys.stdout.flush()  # Flush the output buffer
+        os._exit(0)
+
+def handle_interrupt(signal, frame):
+    print("\nCtrl+C pressed. Saving model and exiting...")
+    sys.stdout.flush()  # Flush the output buffer
+    save_model_and_exit(model)
+
 class LatexDataset(Dataset):
     def __init__(self,df):
         self.df = df
-        self.transform = transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor(),transforms.Normalize(mean=[0.0,0.0,0.0],std=[1.0,1.0,1.0])])
+        self.transform = transforms.Compose([transforms.Resize((224,224)),transforms.ToTensor(),transforms.Normalize(mean=[127.5,127.5,127.5],std=[127.5,127.5,127.5])])
     
     def __getitem__(self,index):
         row = self.df.iloc[index]
@@ -168,6 +188,7 @@ def embed_text(vocab,formulas):
 
 '''Testing Area'''
 if __name__ == '__main__':
+    signal.signal(signal.SIGINT, handle_interrupt)
     #NOTE: Use the following small codeblock for device usage (particularly when using HPC)
     device = (
         "cuda"
