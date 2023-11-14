@@ -171,7 +171,7 @@ if __name__ == '__main__':
         if torch.backends.mps.is_available()
         else "cpu"
     )
-    device = "cpu"
+    # device = "cpu"
     print(f"Using {device} device")
     dir_path = sys.argv[1]
     # batch_s = 128
@@ -190,16 +190,16 @@ if __name__ == '__main__':
     model = Actual_net(vocab)
     loss = nn.CrossEntropyLoss()
     # emb = nn.Embedding(512,469,padding_idx=1)
-    optimizer = torch.optim.Adam(model.parameters(),lr=0.1)
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
     model = model.to(device)
     loss = loss.to(device)
     # emb = emb.to(device)
-    num_epochs = 2
+    num_epochs = 100
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
             # labels = torch.Tensor(labels).to(device)
-            encoding = embed_text(vocab,labels)
+            encoding = embed_text(vocab,labels).to(device)
             # print(i)
             # if i == 1:
             #     break
@@ -213,7 +213,8 @@ if __name__ == '__main__':
             optimizer.step()
             # Print loss for every 128 steps
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
-
+            # break
+    model._save_to_state_dict("model.pth")
 
 
     # print(next(iter(tr_syn))) # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
