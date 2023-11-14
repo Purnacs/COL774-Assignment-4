@@ -174,6 +174,7 @@ def encode_text(vocab,formula):
     text_transform = lambda x: [vocab[token] for token in tokenizer(x)]
     trans = text_transform(formula)
     arr = np.zeros(len(vocab))
+    print(trans)
     arr[trans] = 1
     return arr
 
