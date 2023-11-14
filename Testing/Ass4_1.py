@@ -220,7 +220,7 @@ if __name__ == '__main__':
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
         print(model.predict(pred[0]))
         print(labels[0])
-    model._save_to_state_dict("model.pth")
+    torch.save(model.state_dict(), "model.pth")
 
 
     # print(next(iter(tr_syn))) # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
