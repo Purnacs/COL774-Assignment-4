@@ -114,6 +114,7 @@ class Actual_net (nn.Module):
         super(Actual_net, self).__init__()
         self.cnn = CNN()
         self.lstm = LSTM(len(vocab),512,512)
+        self.vocabulary = vocab
     
     def fit(self,x):
         cnn_out = self.cnn.fit_cnn(x)
@@ -124,17 +125,21 @@ class Actual_net (nn.Module):
     def predict(self,lstm_out):
         # cnn_out = self.cnn.fit_cnn(x)
         # lstm_out = self.lstm.fit_lstm(cnn_out)
-        _, top_indices = lstm_out.topk(1, dim=-1)
-    # Decode top_indices to get formula
-        formula = decode_text(vocab, top_indices.squeeze().tolist())
+        _, top_indices = torch.topk(lstm_out, k=40)
+        # Decode top_indices to get formula
+        ind = top_indices.squeeze().tolist()
+        voc = self.vocabulary.get_itos()
+        tokens = [voc[i] for i in ind]
+        formula = ' '.join(tokens)
+        # formula = self.decode_text(vocab,ind)
         return formula
 
-def decode_text(vocab, indices):
-    # Convert indices to tokens
-    tokens = [vocab[i] for i in indices]
-    # Join tokens into a string with LaTeX formatting
-    formula = ' '.join(tokens)
-    return formula
+    def decode_text(self,vocab, indices):
+        # Convert indices to tokens
+        tokens = [vocab[i] for i in indices]
+        # Join tokens into a string with LaTeX formatting
+        formula = ' '.join(tokens)
+        return formula
         
 
 
@@ -156,7 +161,7 @@ def embed_text(vocab,formulas):
     res = []
     i = 0
     for formula in formulas:
-        idx = torch.Tensor(encode_text(vocab,formula)).to(torch.float64)
+        idx = torch.Tensor(encode_text(vocab,formula)).to(torch.float32)
         res.append(idx)
         i = i+1
     return torch.stack(res)
@@ -187,6 +192,7 @@ if __name__ == '__main__':
     # formula = np.array(tr_syn_df["formula"])
     formula = np.array(tr_syn_df["formula"])
     vocab = vocabulary(formula)
+    print(vocab) #get itos
     model = Actual_net(vocab)
     loss = nn.CrossEntropyLoss()
     # emb = nn.Embedding(512,469,padding_idx=1)
@@ -204,16 +210,16 @@ if __name__ == '__main__':
             # if i == 1:
             #     break
             out = model.fit(inputs)
-            pred = nn.Softmax()(out)
-            pred = pred.to(torch.float64)
-            # print(pred,encoding)
+            pred = nn.ReLU()(out)
+            pred = pred.to(torch.float32)
             loss_out = loss(out,encoding)
             optimizer.zero_grad()
             loss_out.backward()
             optimizer.step()
             # Print loss for every 128 steps
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
-            # break
+        print(model.predict(pred[0]))
+        print(labels[0])
     model._save_to_state_dict("model.pth")
 
 
