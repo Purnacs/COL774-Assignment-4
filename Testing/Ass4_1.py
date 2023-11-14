@@ -89,7 +89,7 @@ class CNN(nn.Module):
     
     def fit_cnn(self,x):
         res = self.single_example_cnn(x)
-        return res.reshape(128,1,1,512) #reshape doesn't work on last set
+        return res.reshape(res.shape[0],1,1,512) #reshape doesn't work on last set
 
 class LSTM (nn.Module):
     def __init__(self,vocab_size,emb_dim,hid_dim):
@@ -100,7 +100,7 @@ class LSTM (nn.Module):
 
     # ?? error ??
     def fit_lstm(self,x):
-        data = x.reshape(128,512)
+        data = x.reshape(x.shape[0],512)
         emb = self.emb(data.to(torch.long))
         out,(ht,ct) = self.lstm(emb)
         output = out[:,-1]
@@ -200,6 +200,7 @@ if __name__ == '__main__':
     model = model.to(device)
     loss = loss.to(device)
     # emb = emb.to(device)
+    # print(tr_syn_dl)
     num_epochs = 100
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
