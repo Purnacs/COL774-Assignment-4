@@ -16,18 +16,18 @@ import torchtext as text
 def save_model_and_exit(model, filename="model.pth"):
     try:
         torch.save(model.state_dict(), filename)
-        print("Model saved.")
-        sys.stdout.flush()  # Flush the output buffer
+        # print("Model saved.")
+        # sys.stdout.flush()  # Flush the output buffer
     except Exception as e:
         print(f"Error saving model: {e}")
         sys.stdout.flush()  # Flush the output buffer
     finally:
-        print("Exiting.")
-        sys.stdout.flush()  # Flush the output buffer
+        # print("Exiting.")
+        # sys.stdout.flush()  # Flush the output buffer
         os._exit(0)
 
 def handle_interrupt(signal, frame):
-    print("\nCtrl+C pressed. Saving model and exiting...")
+    # print("\nCtrl+C pressed. Saving model and exiting...")
     sys.stdout.flush()  # Flush the output buffer
     save_model_and_exit(model)
 
@@ -105,11 +105,17 @@ class CNN(nn.Module):
         x = self.pooling(self.relu(x))
         x = self.layer5(x)
         x = self.pooling(self.relu(x))
+
+        # In case we want to use a for loop instead of manually writing each layer
+        # for i in range(1, 6):
+        #     x = getattr(self, f'layer{i}')(x)
+        #     x = self.pooling(self.relu(x))
+
         return self.last_pooling(self.relu(x))
     
     def fit_cnn(self,x):
         res = self.single_example_cnn(x)
-        return res.reshape(res.shape[0],1,1,512) #reshape doesn't work on last set
+        return res.reshape(res.shape[0],1,1,512) # -> Reshape to [batch_size, 1, 1, 512] for feeding into LSTM
 
 class LSTM (nn.Module):
     def __init__(self,vocab_size,emb_dim,hid_dim):
@@ -174,7 +180,7 @@ def encode_text(vocab,formula):
     text_transform = lambda x: [vocab[token] for token in tokenizer(x)]
     trans = text_transform(formula)
     arr = np.zeros(len(vocab))
-    print(trans)
+    # print(trans)
     arr[trans] = 1
     return arr
 
@@ -198,23 +204,25 @@ if __name__ == '__main__':
         if torch.backends.mps.is_available()
         else "cpu"
     )
-    # device = "cpu"
+    if device == "cuda":
+        torch.cuda.empty_cache()
     print(f"Using {device} device")
     dir_path = sys.argv[1]
     # batch_s = 128
     # dirname = os.path.dirname(__file__)
     # dir_path = os.path.join(dirname,"../Dataset")
-    tr_syn_dl,tr_syn_df = import_data(dir_path,True,"train",128)
-    t_syn,t_syn_df = import_data(dir_path,True,"test",128)
-    v_syn,v_syn_df= import_data(dir_path,True,"val",128)
-    tr_hw,tr_hw_df = import_data(dir_path,False,"train",128)
-    val_hw,v_hw_df = import_data(dir_path,False,"val",128)
+    batch_size = 128
+    tr_syn_dl,tr_syn_df = import_data(dir_path,True,"train",batch_size)
+    t_syn,t_syn_df = import_data(dir_path,True,"test",batch_size)
+    v_syn,v_syn_df= import_data(dir_path,True,"val",batch_size)
+    tr_hw,tr_hw_df = import_data(dir_path,False,"train",batch_size)
+    val_hw,v_hw_df = import_data(dir_path,False,"val",batch_size)
     # print(df)
     # print(images)
     # formula = np.array(tr_syn_df["formula"])
     formula = np.array(tr_syn_df["formula"])
     vocab = vocabulary(formula)
-    print(vocab) #get itos
+    # print(vocab) #get itos
     model = Actual_net(vocab)
     loss = nn.CrossEntropyLoss()
     # emb = nn.Embedding(512,469,padding_idx=1)
