@@ -206,6 +206,7 @@ if __name__ == '__main__':
     )
     if device == "cuda":
         torch.cuda.empty_cache()
+    device = "cpu"
     print(f"Using {device} device")
     dir_path = sys.argv[1]
     # batch_s = 128
@@ -226,7 +227,7 @@ if __name__ == '__main__':
     model = Actual_net(vocab)
     loss = nn.CrossEntropyLoss()
     # emb = nn.Embedding(512,469,padding_idx=1)
-    optimizer = torch.optim.Adam(model.parameters(),lr=0.001)
+    optimizer = torch.optim.Adam(model.parameters(),lr=0.01)
     model = model.to(device)
     loss = loss.to(device)
     # emb = emb.to(device)
@@ -242,11 +243,13 @@ if __name__ == '__main__':
             #     break
             out = model.fit(inputs)
             pred = nn.ReLU()(out)
+            # pred = nn.Softmax()(out)
             pred = pred.to(torch.float32)
-            loss_out = loss(out,encoding)
+            loss_out = loss(pred,encoding)
             optimizer.zero_grad()
             loss_out.backward()
             optimizer.step()
+            # print(pred,encoding)
             # Print loss for every 128 steps
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
         print(model.predict(pred[0]))
