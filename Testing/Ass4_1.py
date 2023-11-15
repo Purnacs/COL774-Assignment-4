@@ -233,6 +233,8 @@ if __name__ == '__main__':
     # emb = emb.to(device)
     # print(tr_syn_dl)
     num_epochs = 100
+    test_output = None
+    test_label = None
     for epoch in range(num_epochs):
         for i, (inputs, labels) in enumerate(tr_syn_dl): # -> Convert the DataLoader object to iterator and then call next for getting the batches one by one which would contain tensor of both images and formulas
             inputs = inputs.to(device)
@@ -245,6 +247,9 @@ if __name__ == '__main__':
             pred = nn.ReLU()(out)
             # pred = nn.Softmax()(out)
             pred = pred.to(torch.float32)
+            if epoch == 1 & i == 1:
+                test_output = pred
+                test_label = labels
             loss_out = loss(pred,encoding)
             optimizer.zero_grad()
             loss_out.backward()
@@ -252,8 +257,8 @@ if __name__ == '__main__':
             # print(pred,encoding)
             # Print loss for every 128 steps
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss_out.item()}')
-        print(model.predict(pred[0]))
-        print(labels[0])
+        print(model.predict(test_output[0]))
+        print(test_label[0])
     torch.save(model.state_dict(), "model.pth")
 
 
