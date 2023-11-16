@@ -127,10 +127,11 @@ class LSTM_Cell(nn.Module):
         self.fc = nn.Linear(hid_dim,vocab_size)
     
     def forward(self,x,h_i,c_i):
-        data = x.reshape(x.shape[0],512)
-        print(data.shape)
+        data = x
+        # data = x.reshape(x.shape[0],512)
+        # print(data.shape)
         emb = self.emb(data.to(torch.long))
-        out,(ht,ct) = self.lstm(emb,h_i,c_i)
+        out,(ht,ct) = self.lstm(emb,(h_i,c_i))
         output = out[:,-1]
         # output = ht[-1,:,:]
         prediction = self.fc(output)
@@ -154,16 +155,16 @@ class Latex_arch(nn.Module):
         encoding = self.cnn.fit_cnn(source) #the first hidden is this and not zero
 
         # x = target[0] #first row of the results data # basically dollar symbols or index 4 to be encoded from vocab
-        x = self.emb(torch.Tensor([1]*128).to(torch.long))
+        x = torch.Tensor([1]*encoding.shape[0]).to(torch.long).to(device)
         print(x.shape)
-        h_i,c_i = 0,0 
+        h_i = c_i = encoding.reshape(encoding.shape[0],512)[0].reshape(1,512)
         for t in range (1,target_len):
             print(t)
             output,ht,ct = self.rnn.forward(x,h_i,c_i)
             outputs[t] = output
             prediction  = output.argmax(1).to(torch.long)
 
-            x = self.emb(prediction)
+            x = prediction
             h_i,c_i = ht,ct
 
         return outputs
@@ -265,7 +266,7 @@ if __name__ == '__main__':
     )
     if device == "cuda":
         torch.cuda.empty_cache()
-    device = "cpu"
+    # device = "cpu"
     print(f"Using {device} device")
     dir_path = sys.argv[1]
     # batch_s = 128
