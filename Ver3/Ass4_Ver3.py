@@ -295,3 +295,6 @@ if __name__ == '__main__':
                     actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
                     print(f"Predicted: {predicted_labels}")
                     print(f"Actual: {actual_labels}")
+            if i == 41:
+                break
+        break
