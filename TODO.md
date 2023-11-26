@@ -43,3 +43,13 @@
 ## Tasks just for fun (For code cleanliness lol):
 
 - In `./Testing/Data_processing.py` update the `get_path()` function to make it more generalized
+
+## Updated Final Tasks
+
+- [x] How to encode the labels for calculating loss -> Encoding would be done in LSTM to an embedding which would be passed to softmax to produce index probabilities which on argmax gives index, where vocab[index] would be the most probable character for prediction
+- [x] Padding for the labels - How to do and what should the padding be -> Update vocab accordingly -> <PAD> is a possible token that we could put in 0 index of vocab
+- [ ] Read about the following
+  - [ ] TorchText
+  - [ ] CrossEntropy loss function + Passing parameters to loss
+  - [ ] AdamOptimizer
+  - [x] Embedding
