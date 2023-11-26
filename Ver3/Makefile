@@ -14,6 +14,6 @@ HPC_Auto: Ass4_Ver3.py
 	git remote set-url origin git@github.com:Purnacs/COL774-Assignment-4.git
 	git add .
 	git commit -m "HPC Auto Commit"
-	git push origin Automated_test
+	git push origin HPC_Automate
 
 	
