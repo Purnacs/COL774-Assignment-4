@@ -1,6 +1,5 @@
 import os
 import sys
-import signal
 import time
 import pandas as pd
 import numpy as np
@@ -12,26 +11,21 @@ import sys
 from torch.utils.data import Dataset,DataLoader 
 import torchtext as text
 import random
-import winsound
 
-'''Saving model and exiting'''
-def save_model_and_exit(model, filename="model.pth"):
-    try:
-        torch.save(model.state_dict(), filename) # TODO: Need to save vocab, optimizer and other stuff too
-        # print("Model saved.")
-        # sys.stdout.flush()  # Flush the output buffer
-    except Exception as e:
-        print(f"Error saving model: {e}")
-        sys.stdout.flush()  # Flush the output buffer
-    finally:
-        # print("Exiting.")
-        # sys.stdout.flush()  # Flush the output buffer
-        os._exit(0)
-
-def handle_interrupt(signal, frame):
-    # print("\nCtrl+C pressed. Saving model and exiting...")
-    sys.stdout.flush()  # Flush the output buffer
-    save_model_and_exit(model)
+'''Helper Functions for GPU'''
+def optimizer_to(optim, device):
+    for param in optim.state.values():
+        # Not sure there are any global tensors in the state dict
+        if isinstance(param, torch.Tensor):
+            param.data = param.data.to(device)
+            if param._grad is not None:
+                param._grad.data = param._grad.data.to(device)
+        elif isinstance(param, dict):
+            for subparam in param.values():
+                if isinstance(subparam, torch.Tensor):
+                    subparam.data = subparam.data.to(device)
+                    if subparam._grad is not None:
+                        subparam._grad.data = subparam._grad.data.to(device)
 
 '''Data Handling'''
 class LatexDataset(Dataset):
@@ -210,19 +204,20 @@ class Latex_arch(nn.Module):
 
 "Testing Area"
 if __name__ == '__main__':
-    signal.signal(signal.SIGINT, handle_interrupt)
+    # Converting to GPU if available
     device = (
         "cuda"
         if torch.cuda.is_available()
         else "mps"
         if torch.backends.mps.is_available()
         else "cpu"
-    )
+        )
     if device == "cuda":
         torch.cuda.empty_cache()
-    # device = "cpu"
     print(f"Using {device} device")
-    
+
+    model_save_path = "./Ass4_Ver3.tar" 
+
     print("Loading Datasets...")
     dir_path = sys.argv[1]
     # dir_path = "./Dataset"
@@ -237,15 +232,25 @@ if __name__ == '__main__':
     formula = np.array(tr_syn_df["formula"])
     vocab = vocabulary(formula)
 
-    print("Creating Model...")
+    print("Initializing Model...")
     model = Latex_arch(vocab)
-    criterion = nn.CrossEntropyLoss() #For now? -> TODO: Check working
-    optimizer = torch.optim.Adam(model.parameters(),lr=1e-3) #For now? -> TODO: Check working
+    criterion = nn.CrossEntropyLoss()
+    optimizer = torch.optim.Adam(model.parameters(),lr=1e-2) 
+    loss = 0
+
+    # Load model if it exists
+    if os.path.exists(model_save_path):
+        print("Loading Model...")
+        checkpoint = torch.load(model_save_path,map_location="cpu")
+        model.load_state_dict(checkpoint['model_state_dict'])
+        optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        epoch = checkpoint['epoch']
+        loss = checkpoint['loss']
 
     # Shift things to device
     model.to(device)
+    optimizer_to(optimizer,device)
     # criterion.to(device)
-    # optimizer.to(device)
 
     fixed_image = []
     fixed_label = []
@@ -256,11 +261,20 @@ if __name__ == '__main__':
             model.train() # Set model to training mode
             images = images.to(device)
             tensor_labels = labels_to_tensor(labels,vocab).to(device)
+
+            #Just for basic testing
             if i == 0 and epoch == 0:
                 fixed_image = images[0].unsqueeze(0)
                 fixed_label = tensor_labels[0].unsqueeze(0)
 
-            # print(tensor_labels.shape)
+            if (i+1)%20 == 0: # Save model every 20 steps
+                torch.save({
+                            'epoch': epoch,
+                            'model_state_dict': model.state_dict(),
+                            'optimizer_state_dict': optimizer.state_dict(),
+                            'loss': loss,
+                            }, model_save_path)
+
             model.zero_grad()
             output = model.latex_forward(images,tensor_labels).to(device)
             output = output.reshape(output.shape[0],output.shape[2],output.shape[1])
@@ -274,11 +288,10 @@ if __name__ == '__main__':
                 predicted_indices = torch.argmax(test_out.squeeze(0), dim=1)
                 actual_indices = fixed_label.flatten()
                 # Print the predicted and actual labels using vocab
-                # predicted_labels = " ".join([vocab.lookup_token(index) for index in predicted_indices])
-                # actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
-                # print(f"Predicted: {predicted_labels}")
-                # print(f"Actual: {actual_labels}")
-                acc = 100*(predicted_indices == actual_indices).sum().item() / len(actual_indices)
+                acc = 100*((predicted_indices == actual_indices).sum().item()) / len(actual_indices)
                 print(f"Accuracy rate on this specific example: {acc:.4f}")
                 if acc > 50:
-                    winsound.Beep(1000, 1000)
+                    predicted_labels = " ".join([vocab.lookup_token(index) for index in predicted_indices])
+                    actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
+                    print(f"Predicted: {predicted_labels}")
+                    print(f"Actual: {actual_labels}")
