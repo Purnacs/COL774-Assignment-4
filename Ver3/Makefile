@@ -15,5 +15,6 @@ HPC_Auto: Ass4_Ver3.py
 	git add .
 	git commit -m "HPC Auto Commit"
 	git push origin HPC_Automate
+	echo "Hello"
 
 	
