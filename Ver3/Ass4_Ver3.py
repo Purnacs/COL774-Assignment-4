@@ -221,7 +221,7 @@ if __name__ == '__main__':
     print("Loading Datasets...")
     dir_path = sys.argv[1]
     # dir_path = "./Dataset"
-    batch_size = 64
+    batch_size = 256
     tr_syn_dl,tr_syn_df = import_data(dir_path,True,"train",batch_size)
     t_syn,t_syn_df = import_data(dir_path,True,"test",batch_size)
     v_syn,v_syn_df= import_data(dir_path,True,"val",batch_size)
