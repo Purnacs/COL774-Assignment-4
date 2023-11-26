@@ -12,6 +12,7 @@ from torch.utils.data import Dataset,DataLoader
 import torchtext as text
 import random
 
+device = 'cpu'
 '''Helper Functions for GPU'''
 def optimizer_to(optim, device):
     for param in optim.state.values():
@@ -203,6 +204,7 @@ class Latex_arch(nn.Module):
         return out
 
 "Testing Area"
+
 if __name__ == '__main__':
     # Converting to GPU if available
     device = (
@@ -212,6 +214,7 @@ if __name__ == '__main__':
         if torch.backends.mps.is_available()
         else "cpu"
         )
+    device = "cpu"
     if device == "cuda":
         torch.cuda.empty_cache()
     print(f"Using {device} device")
@@ -235,7 +238,7 @@ if __name__ == '__main__':
     print("Initializing Model...")
     model = Latex_arch(vocab)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(),lr=1e-2) 
+    optimizer = torch.optim.SGD(model.parameters(),lr=1e-2) 
     loss = 0
 
     # Load model if it exists
@@ -290,8 +293,8 @@ if __name__ == '__main__':
                 # Print the predicted and actual labels using vocab
                 acc = 100*((predicted_indices == actual_indices).sum().item()) / len(actual_indices)
                 print(f"Accuracy rate on this specific example: {acc:.4f}")
-                if acc > 50:
-                    predicted_labels = " ".join([vocab.lookup_token(index) for index in predicted_indices])
-                    actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
-                    print(f"Predicted: {predicted_labels}")
-                    print(f"Actual: {actual_labels}")
+                # if acc > 50:
+                predicted_labels = " ".join([vocab.lookup_token(index) for index in predicted_indices])
+                actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
+                print(f"Predicted: {predicted_labels}")
+                print(f"Actual: {actual_labels}")
