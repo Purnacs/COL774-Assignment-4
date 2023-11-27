@@ -82,7 +82,7 @@ class LatexDataset(Dataset):
     def __getitem__(self,index):
         row = self.df.iloc[index]
         img_path = row['image']
-        img = Image.open(img_path)
+        img = Image.open(img_path).convert('RGB')
         img = self.transform(img)
         return img,row['formula']
     
@@ -96,7 +96,10 @@ def get_path(dir_path,is_synthetic,data_type):
         image_path = "images/"
     else:
         data_path = "/HandwrittenData/"
-        image_path = "images/" + data_type + "/"
+        if data_type == "test":
+            image_path = "images/" + "test" + "/"
+        else:
+            image_path = "images/" + "train" + "/"
         data_type += "_hw"
     csv_path = dir_path + data_path + data_type + ".csv"
     img_path = dir_path + data_path + image_path
@@ -148,7 +151,7 @@ def labels_to_tensor(labels,vocab):
     '''
     tokenizer = text.data.utils.get_tokenizer(None)
     
-    output_labels = [torch.tensor([vocab[token] for token in tokenizer(label)], dtype=torch.long) for label in labels]
+    output_labels = [torch.tensor([vocab[token] if token in vocab else vocab["{"] for token in tokenizer(label)], dtype=torch.long) for label in labels]
     
     # # NOTE: To avoid variable time LSTM wrt batches, just fix max_size as some large value and remove the updating step inside previous loop
     max_size = max(tensor.size(0) for tensor in output_labels)
@@ -212,15 +215,17 @@ class LSTM(nn.Module):
         '''
         batch_size = context_vec.shape[0]
         if labels is None:
-            total_time_steps = 400 #Max expected size of a formula?
+            total_time_steps = 650 #Max expected size of a formula?
+            start_emb = self.embedding(torch.tensor([self.vocab.__getitem__("$")]*batch_size,dtype=torch.long).to(device)) #TODO: Check if this is even correct + Why is it that I have to do to(device) here?
+            x_t = torch.concat((context_vec,start_emb),dim=1)
             tf = 0 #Avoid doing the label embedding step + pure prediction
         else:
             total_time_steps = labels.shape[1]
             label_emb = self.embedding(labels)
+            x_t = torch.concat((context_vec,label_emb[:,t,:]),dim=1) # Concatanation of context vector and first index of label embedding of all batches (ie Batch_size x [0th index] x emb_dim)
             tf = 0.5 #Teacher forcing probability
         t = 0
         h_t = c_t = context_vec
-        x_t = torch.concat((context_vec,label_emb[:,t,:]),dim=1) # Concatanation of context vector and first index of label embedding of all batches (ie Batch_size x [0th index] x emb_dim)
         outputs = torch.zeros(batch_size,total_time_steps,len(self.vocab)) # TODO: Change variable name and updation
         for t in range(1,total_time_steps):
             h_t, c_t = self.lstm_cell(x_t,(h_t,c_t))
@@ -301,16 +306,18 @@ if __name__ == '__main__':
     print("Loading Datasets...")
     dir_path = sys.argv[1]
     # dir_path = "./Dataset"
-    batch_size = 128
+    batch_size = 64
     tr_syn_dl,tr_syn_df = import_data(dir_path,True,"train",batch_size)
-    t_syn,t_syn_df = import_data(dir_path,True,"test",batch_size)
-    v_syn,v_syn_df= import_data(dir_path,True,"val",batch_size)
+    t_syn,t_syn_df = import_data(dir_path,True,"test",1)
+    v_syn,v_syn_df= import_data(dir_path,True,"val",1)
     tr_hw,tr_hw_df = import_data(dir_path,False,"train",batch_size)
-    val_hw,v_hw_df = import_data(dir_path,False,"val",batch_size)
+    t_hw,t_hw_df = import_data(dir_path,False,"test",1)
+    val_hw,v_hw_df = import_data(dir_path,False,"val",1)
     
     print("Creating Vocabulary...")
     formula = np.array(tr_syn_df["formula"])
     vocab = vocabulary(formula)
+    # print(vocab.__getitem__("div"))
 
     print("Initializing Model...")
     model = Latex_arch(vocab)
@@ -336,53 +343,84 @@ if __name__ == '__main__':
     fixed_image = []
     fixed_label = []
     num_epochs = 100
-    print("Training Model...")
-    for epoch in range(num_epochs):
-        for i,(images,labels) in enumerate(tr_syn_dl):
-            model.train() # Set model to training mode
-            images = images.to(device)
-            tensor_labels = labels_to_tensor(labels,vocab).to(device)
+    # print("Training Model...")
+    # for epoch in range(num_epochs):
+    #     for i,(images,labels) in enumerate(tr_syn_dl):
+    #         model.train() # Set model to training mode
+    #         images = images.to(device)
+    #         tensor_labels = labels_to_tensor(labels,vocab).to(device)
 
-            #Just for basic testing
-            if i == 0 and epoch == 0:
-                fixed_image = images[0].unsqueeze(0)
-                fixed_label = tensor_labels[0].unsqueeze(0)
+    #         #Just for basic testing
+    #         if i == 0 and epoch == 0:
+    #             fixed_image = images[0].unsqueeze(0)
+    #             fixed_label = tensor_labels[0].unsqueeze(0)
 
-            if (i+1)%20 == 0: # Save model every 20 steps
-                torch.save({
-                            'epoch': epoch,
-                            'model_state_dict': model.state_dict(),
-                            'optimizer_state_dict': optimizer.state_dict(),
-                            'loss': loss,
-                            }, model_save_path)
+    #         if (i+1)%20 == 0: # Save model every 20 steps
+    #             torch.save({
+    #                         'epoch': epoch,
+    #                         'model_state_dict': model.state_dict(),
+    #                         'optimizer_state_dict': optimizer.state_dict(),
+    #                         'loss': loss,
+    #                         }, model_save_path)
 
-            model.zero_grad()
-            output = model.latex_forward(images,tensor_labels).to(device)
-            loss = criterion(output.reshape(output.shape[0],output.shape[2],output.shape[1]),tensor_labels)  #NOTE: The reshaping is due to definition of cross-entropy
-            loss.backward()
-            optimizer.step()
+    #         model.zero_grad()
+    #         output = model.latex_forward(images,tensor_labels).to(device)
+    #         loss = criterion(output.reshape(output.shape[0],output.shape[2],output.shape[1]),tensor_labels)  #NOTE: The reshaping is due to definition of cross-entropy
+    #         loss.backward()
+    #         optimizer.step()
  
-            ground_truths = labels_to_latex(tensor_labels,vocab)
-            predictions = prediction_to_latex(output,vocab)
+    #         ground_truths = labels_to_latex(tensor_labels,vocab)
+    #         predictions = prediction_to_latex(output,vocab)
 
-            overall = 0
-            for gt, pred in zip(ground_truths, predictions):
-                gt = gt.split()
-                pred = pred.split()
-                overall += BLEU.compute(pred,[gt], weights=[1/4, 1/4, 1/4, 1/4])
+    #         overall = 0
+    #         for gt, pred in zip(ground_truths, predictions):
+    #             gt = gt.split()
+    #             pred = pred.split()
+    #             overall += BLEU.compute(pred,[gt], weights=[1/4, 1/4, 1/4, 1/4])
 
-            print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Macro Bleu: {overall/len(predictions)}')
-            # model.eval() # Set model to evaluation mode
-            # with torch.no_grad():
-            #     test_out = model.latex_forward(fixed_image,fixed_label).to(device)
-            #     predicted_indices = torch.argmax(test_out.squeeze(0), dim=1)
-            #     actual_indices = fixed_label.flatten()
-            #     # Print the predicted and actual labels using vocab
-            #     acc = 100*((predicted_indices == actual_indices).sum().item()) / len(actual_indices)
-            #     print(f"Accuracy rate on this specific example: {acc:.4f}")
-            #     if acc > 50:
-            #         predicted_labels = " ".join([vocab.lookup_token(index) for index in predicted_indices])
-            #         actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
-            #         print(f"Predicted: {predicted_labels}")
-            #         print(f"Actual: {actual_labels}")
+    #         print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Macro Bleu: {overall/len(predictions)}')
 
+    import csv
+    print('''Testing Model...''')
+    test_data = t_hw
+    if test_data == t_hw:
+        path_prefix = "../Dataset/HandwrittenData/images/test/"
+        test_df = t_hw_df
+        csvfile = open(dir_path+"/predictions.csv",newline='',mode='w')
+        csvwriter = csv.writer(csvfile)
+        csvwriter.writerow(["image","formula"])
+    ground_truths = []
+    predictions = []
+    for i,(images,labels) in enumerate(test_data):
+        model.eval() # Set model to evaluation mode
+        images = images.to(device)
+        # tensor_labels = labels_to_tensor(labels,vocab).to(device)
+        output = model.latex_forward(images).to(device)
+
+        # present_ground_truths = labels_to_latex(tensor_labels,vocab)
+        present_predictions = prediction_to_latex(output,vocab)
+        if test_data == t_hw:
+            # print(f'Predictions: {present_predictions[0]}')
+            # print(len(present_predictions))
+            csvwriter.writerow([os.path.relpath(t_hw_df["image"][i],path_prefix),present_predictions[0][6:]])
+        # print(f'Ground Truth: {present_ground_truths[0]}')
+        # print(f'Predictions: {present_predictions[0]}')
+        # ground_truths.extend(present_ground_truths)
+        # predictions.extend(present_predictions)
+
+        # val = 0
+        # for gt, pred in zip(present_ground_truths, present_predictions):
+        #     gt = gt.split()
+        #     pred = pred.split()
+        #     val += BLEU.compute(pred,[gt], weights=[1/4, 1/4, 1/4, 1/4])
+        # print(f'Current Macro Bleu for batch {i}: {val/len(present_predictions)}')
+
+    # overall = 0
+    # for gt, pred in zip(ground_truths, predictions):
+    #     gt = gt.split()
+    #     pred = pred.split()
+    #     overall += BLEU.compute(pred,[gt], weights=[1/4, 1/4, 1/4, 1/4])
+    # print(f'Total Macro Bleu: {overall/len(predictions)}')
+
+    if test_data == t_hw:
+        csvfile.close()
