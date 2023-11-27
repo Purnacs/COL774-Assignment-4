@@ -11,53 +11,7 @@ import sys
 from torch.utils.data import Dataset,DataLoader 
 import torchtext as text
 import random
-import math
-from nltk import word_tokenize
-from collections import Counter
-from nltk.util import ngrams
 
-''' BLEU Score '''
-class BLEU(object):
-    @staticmethod
-    def compute(candidate, references, weights):
-        candidate = [c.lower() for c in candidate]
-        references = [[r.lower() for r in reference] for reference in references]
-
-        p_ns = (BLEU.modified_precision(candidate, references, i) for i, _ in enumerate(weights, start=1))
-        s = math.fsum(w * math.log(p_n) for w, p_n in zip(weights, p_ns) if p_n)
-
-        bp = BLEU.brevity_penalty(candidate, references)
-        return bp * math.exp(s)
-
-    @staticmethod
-    def modified_precision(candidate, references, n):
-        counts = Counter(ngrams(candidate, n))
-
-        if not counts:
-            return 0
-
-        max_counts = {}
-        for reference in references:
-            reference_counts = Counter(ngrams(reference, n))
-            for ngram in counts:
-                max_counts[ngram] = max(max_counts.get(ngram, 0), reference_counts[ngram])
-
-        clipped_counts = dict((ngram, min(count, max_counts[ngram])) for ngram, count in counts.items())
-
-        return sum(clipped_counts.values()) / sum(counts.values())
-    
-    @staticmethod
-    def brevity_penalty(candidate, references):
-        c = len(candidate)
-        # r = min(abs(len(r) - c) for r in references)
-        r = min(len(r) for r in references)
-
-        if c > r:
-            return 1
-        else:
-            return math.exp(1 - r / c)
-        
- 
 '''Helper Functions for GPU'''
 def optimizer_to(optim, device):
     for param in optim.state.values():
@@ -203,30 +157,25 @@ class LSTM(nn.Module):
         self.lstm_cell = nn.LSTMCell(input_size = 1024,hidden_size = hidden_dim)
         self.linear = nn.Linear(hidden_dim,len(vocab))
 
-    def lstm_forward(self,context_vec,labels=None):
+    def lstm_forward(self,context_vec,labels):
         '''
         Args:
             x: A tensor of shape [batch_size, input_dim]
         Returns:
             A tensor of shape [batch_size, hidden_dim]
         '''
-        batch_size = context_vec.shape[0]
-        if labels is None:
-            total_time_steps = 400 #Max expected size of a formula?
-            tf = 0 #Avoid doing the label embedding step + pure prediction
-        else:
-            total_time_steps = labels.shape[1]
-            label_emb = self.embedding(labels)
-            tf = 0.5 #Teacher forcing probability
+        total_time_steps = labels.shape[1]
+        batch_size = labels.shape[0]
         t = 0
         h_t = c_t = context_vec
+        label_emb = self.embedding(labels)
         x_t = torch.concat((context_vec,label_emb[:,t,:]),dim=1) # Concatanation of context vector and first index of label embedding of all batches (ie Batch_size x [0th index] x emb_dim)
         outputs = torch.zeros(batch_size,total_time_steps,len(self.vocab)) # TODO: Change variable name and updation
         for t in range(1,total_time_steps):
             h_t, c_t = self.lstm_cell(x_t,(h_t,c_t))
             output = self.linear(h_t)
             outputs[:,t,:] = output #TODO: Check if this is even correct
-            if random.random() < tf: #Teacher forcing
+            if random.random() < 0.5: #Teacher enforcing
                 next_inp = label_emb[:,t,:]
             else:
                 next_inp = self.embedding(torch.argmax(outputs[:,t,:],dim=1).to(device)) #TODO: Check if this is even correct + Why is it that I have to do to(device) here?
@@ -242,7 +191,7 @@ class Latex_arch(nn.Module):
         self.decoder = LSTM(vocab)
         self.vocab = vocab
 
-    def latex_forward(self,x,labels=None):
+    def latex_forward(self,x,labels):
         '''
         Args:
             x: A tensor of shape [batch_size, 3, 224, 224]
@@ -252,35 +201,6 @@ class Latex_arch(nn.Module):
         context_vec = self.encoder.fit_cnn(x).reshape(x.shape[0],512)
         out = self.decoder.lstm_forward(context_vec,labels)
         return out
-
-''' Converting prediction to latex '''
-def prediction_to_latex(prediction,vocab):
-    '''
-    Converts the given prediction to latex
-    Args:
-        prediction: A tensor of shape [batch_size, max_len, vocab_size]
-        vocab: A torchtext.vocab object containing the vocabulary
-    Returns:
-        A list of strings containing the latex labels
-    '''
-    output_labels = []
-    for i in range(prediction.shape[0]):
-        output_labels.append(" ".join([vocab.lookup_token(torch.argmax(index)) for index in prediction[i]]))
-    return output_labels
-
-def labels_to_latex(labels,vocab):
-    '''
-    Converts the given labels to latex
-    Args:
-        labels: A tensor of shape [batch_size, max_len]
-        vocab: A torchtext.vocab object containing the vocabulary
-    Returns:
-        A list of strings containing the latex labels
-    '''
-    output_labels = []
-    for i in range(labels.shape[0]):
-        output_labels.append(" ".join([vocab.lookup_token(index) for index in labels[i]]))
-    return output_labels
 
 "Testing Area"
 if __name__ == '__main__':
@@ -315,7 +235,7 @@ if __name__ == '__main__':
     print("Initializing Model...")
     model = Latex_arch(vocab)
     criterion = nn.CrossEntropyLoss()
-    optimizer = torch.optim.Adam(model.parameters(),lr=1e-3) 
+    optimizer = torch.optim.Adam(model.parameters(),lr=1e-2) 
     loss = 0
 
     # Load model if it exists
@@ -332,7 +252,6 @@ if __name__ == '__main__':
     optimizer_to(optimizer,device)
     # criterion.to(device)
 
-    scorer = BLEU()
     fixed_image = []
     fixed_label = []
     num_epochs = 100
@@ -358,30 +277,23 @@ if __name__ == '__main__':
 
             model.zero_grad()
             output = model.latex_forward(images,tensor_labels).to(device)
-            loss = criterion(output.reshape(output.shape[0],output.shape[2],output.shape[1]),tensor_labels)  #NOTE: The reshaping is due to definition of cross-entropy
+            output = output.reshape(output.shape[0],output.shape[2],output.shape[1])
+            loss = criterion(output,tensor_labels) #NOTE: The reshaping is due to definition of cross-entropy
             loss.backward()
             optimizer.step()
- 
-            ground_truths = labels_to_latex(tensor_labels,vocab)
-            predictions = prediction_to_latex(output,vocab)
-
-            overall = 0
-            for gt, pred in zip(ground_truths, predictions):
-                gt = gt.split()
-                pred = pred.split()
-                overall += BLEU.compute(pred,[gt], weights=[1/4, 1/4, 1/4, 1/4])
-
-            print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Macro Bleu: {overall/len(predictions)}')
+            print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn_dl)}], Loss: {loss.item()}')
             model.eval() # Set model to evaluation mode
-            # with torch.no_grad():
-            #     test_out = model.latex_forward(fixed_image,fixed_label).to(device)
-            #     predicted_indices = torch.argmax(test_out.squeeze(0), dim=1)
-            #     actual_indices = fixed_label.flatten()
-            #     # Print the predicted and actual labels using vocab
-            #     acc = 100*((predicted_indices == actual_indices).sum().item()) / len(actual_indices)
-            #     print(f"Accuracy rate on this specific example: {acc:.4f}")
-            #     if acc > 50:
-            #         predicted_labels = " ".join([vocab.lookup_token(index) for index in predicted_indices])
-            #         actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
-            #         print(f"Predicted: {predicted_labels}")
-            #         print(f"Actual: {actual_labels}")
+            with torch.no_grad():
+                test_out = model.latex_forward(fixed_image,fixed_label).to(device)
+                predicted_indices = torch.argmax(test_out.squeeze(0), dim=1)
+                actual_indices = fixed_label.flatten()
+                # Print the predicted and actual labels using vocab
+                acc = 100*((predicted_indices == actual_indices).sum().item()) / len(actual_indices)
+                print(f"Accuracy rate on this specific example: {acc:.4f}")
+                if acc > 50:
+                    predicted_labels = " ".join([vocab.lookup_token(index) for index in predicted_indices])
+                    actual_labels = " ".join([vocab.lookup_token(index) for index in actual_indices])
+                    print(f"Predicted: {predicted_labels}")
+                    print(f"Actual: {actual_labels}")
+
+
