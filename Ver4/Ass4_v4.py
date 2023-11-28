@@ -102,7 +102,7 @@ def vocabulary(latex_data):
     '''
     latex_data = latex_data.flatten() # Flatten array -> Latex_data is mx1 array
     tokenizer = text.data.utils.get_tokenizer(None)
-    vocab = text.vocab.build_vocab_from_iterator(map(tokenizer, latex_data), specials=["<PAD>","<SOS>","<EOS>","<UNK>"],special_first=True)
+    vocab = text.vocab.build_vocab_from_iterator(map(tokenizer, latex_data), specials=["<SOS>","<EOS>","<PAD>","<UNK>"],special_first=True)
     return vocab
 
 # TODO: Could use this as the collate fn in Data_loader which would then directly return the labels as tensors instead of doing it in the main code
@@ -132,7 +132,7 @@ def labels_to_tensor(labels,vocab):
     #     output_labels.append(tokens)
 
     # Pad the tensors with 0s aka the <PAD> token at end -> We are gonna do variable length batching (TODO: Check if this is correct)
-    output_labels = nn.utils.rnn.pad_sequence(output_labels,batch_first=True,padding_value=0)
+    output_labels = nn.utils.rnn.pad_sequence(output_labels,batch_first=True,padding_value=2)
     # print(max_size)
     return output_labels
 
@@ -168,7 +168,7 @@ class LSTM(nn.Module):
         self.input_dim = input_dim
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
-        self.embedding = nn.Embedding(len(vocab),emb_dim,padding_idx=0)
+        self.embedding = nn.Embedding(len(vocab),emb_dim,padding_idx=2)
         self.lstm_cell = nn.LSTMCell(input_size = 1024,hidden_size = hidden_dim)
         self.linear = nn.Linear(hidden_dim,len(vocab))
 
@@ -180,19 +180,17 @@ class LSTM(nn.Module):
             A tensor of shape [batch_size, hidden_dim]
         '''
         batch_size = context_vec.shape[0]
-        if labels is None:
+        start_emb = self.embedding(torch.tensor([self.vocab.__getitem__("<SOS>")]*batch_size,dtype=torch.long).to(device)) #TODO: Check if this is even correct + Why is it that I have to do to(device) here?
+        if labels is None: #ie the case of pure inference
             total_time_steps = 650 #Max expected size of a formula?
-            start_emb = self.embedding(torch.tensor([self.vocab.__getitem__("$")]*batch_size,dtype=torch.long).to(device)) #TODO: Check if this is even correct + Why is it that I have to do to(device) here?
-            x_t = torch.concat((context_vec,start_emb),dim=1)
             tf = 0 #Avoid doing the label embedding step + pure prediction
-        else:
-            total_time_steps = labels.shape[1]
-            label_emb = self.embedding(labels)
-            x_t = torch.concat((context_vec,label_emb[:,0,:]),dim=1) # Concatanation of context vector and first index of label embedding of all batches (ie Batch_size x [0th index] x emb_dim)
+        else: #ie the case of training
+            total_time_steps = labels.shape[1] 
+            label_emb = self.embedding(labels) 
             tf = 0.5 #Teacher forcing probability
-        t = 0
+        x_t = torch.concat((context_vec,start_emb),dim=1) 
         h_t = c_t = context_vec
-        outputs = torch.zeros(batch_size,total_time_steps,len(self.vocab)) # TODO: Change variable name and updation
+        outputs = torch.zeros(batch_size,total_time_steps,len(self.vocab))
         for t in range(1,total_time_steps):
             h_t, c_t = self.lstm_cell(x_t,(h_t,c_t))
             output = self.linear(h_t)
@@ -331,12 +329,14 @@ if __name__ == '__main__':
 
             ground_truths = labels_to_latex(tensor_labels,vocab)
             predictions = prediction_to_latex(output,vocab)
+            # print(f'Ground Truth: {tensor_labels[0].cpu().numpy()}')
+            # print(f'Prediction: {torch.argmax(output[0],dim=1).cpu().numpy()}')
             bleu_score = get_scores(predictions, ground_truths)
 
             print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_syn)}], Macro Bleu: {bleu_score}, Avg Batch Loss: {train_loss/(i+1):.4f}')
             print("\n")
-            if i == 10:
-                sys.exit(0)
+            # if i == 10:
+            #     sys.exit(0)
         print(f'Epoch [{epoch+1}/{num_epochs}], Avg Batch Loss: {train_loss/len(tr_syn)}')
 
     print('''Testing Model...''')
