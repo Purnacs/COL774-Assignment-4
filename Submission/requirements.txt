@@ -1,3 +1,16 @@
-torch===2.1.0
+csv===0.0.13
+donut===0.2.2
+huggingface-hub===0.19.4
+jupyter===1.0.0
+nltk===3.8.1
+numpy===1.22.3
+pandas===2.0.3
+pytorch-lightning===2.1.2
+torch===2.1.0+cu121
+torchaudio===2.1.0+cu121
+torchdata===0.7.0
 torchvision===0.16.0
 torchtext===0.16.0
+tokenizers===0.15.0
+tqdm===4.66.1
+transformers===4.35.2

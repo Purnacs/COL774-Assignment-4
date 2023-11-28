@@ -9,18 +9,23 @@ import torch
 from torchvision import transforms
 import sys
 from torch.utils.data import Dataset,DataLoader 
+from tqdm import tqdm
 import torchtext as text
 import random
-import math
+import csv
 import nltk
-from nltk.translate.bleu_score import sentence_bleu, SmoothingFunction
 
-def get_scores(ops,gts):
-    sc = 0
-    for k in range(len(ops)):
-        sc += sentence_bleu(gts[k], ops[k], smoothing_function=SmoothingFunction().method4)
-
-    return(sc/len(ops))
+def sbleu(GT,PRED):
+    score = 0
+    for i in range(len(GT)):
+        Lgt = len(GT[i].split(' '))
+        if Lgt > 4 :
+            cscore = nltk.translate.bleu_score.sentence_bleu([GT[i].split(' ')],PRED[i].split(' '),weights=(0.25,0.25,0.25,0.25),smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method4)
+        else:
+            weight_lst = tuple([1.0/Lgt]*Lgt)
+            cscore = nltk.translate.bleu_score.sentence_bleu([GT[i].split(' ')],PRED[i].split(' '),weights=weight_lst,smoothing_function=nltk.translate.bleu_score.SmoothingFunction().method4)
+        score += cscore
+    return score/(len(GT))
 
  
 '''Helper Functions for GPU'''
@@ -101,7 +106,7 @@ def vocabulary(latex_data):
     '''
     latex_data = latex_data.flatten() # Flatten array -> Latex_data is mx1 array
     tokenizer = text.data.utils.get_tokenizer(None)
-    vocab = text.vocab.build_vocab_from_iterator(map(tokenizer, latex_data), specials=["<PAD>","<UNK>"],special_first=True)
+    vocab = text.vocab.build_vocab_from_iterator(map(tokenizer, latex_data), specials=["<SOS>","<EOS>","<PAD>","<UNK>"],special_first=True)
     return vocab
 
 # TODO: Could use this as the collate fn in Data_loader which would then directly return the labels as tensors instead of doing it in the main code
@@ -116,7 +121,7 @@ def labels_to_tensor(labels,vocab):
     '''
     tokenizer = text.data.utils.get_tokenizer(None)
     
-    output_labels = [torch.tensor([vocab[token] if token in vocab else vocab["<UNK>"] for token in tokenizer(label)], dtype=torch.long) for label in labels]
+    output_labels = [torch.tensor([vocab["<SOS>"]]+[vocab[token] if token in vocab else vocab["<UNK>"] for token in tokenizer(label)]+[vocab["<EOS>"]], dtype=torch.long) for label in labels]
     
     # # NOTE: To avoid variable time LSTM wrt batches, just fix max_size as some large value and remove the updating step inside previous loop
     max_size = max(tensor.size(0) for tensor in output_labels)
@@ -131,7 +136,7 @@ def labels_to_tensor(labels,vocab):
     #     output_labels.append(tokens)
 
     # Pad the tensors with 0s aka the <PAD> token at end -> We are gonna do variable length batching (TODO: Check if this is correct)
-    output_labels = nn.utils.rnn.pad_sequence(output_labels,batch_first=True,padding_value=0)
+    output_labels = nn.utils.rnn.pad_sequence(output_labels,batch_first=True,padding_value=2)
     # print(max_size)
     return output_labels
 
@@ -167,7 +172,7 @@ class LSTM(nn.Module):
         self.input_dim = input_dim
         self.emb_dim = emb_dim
         self.hidden_dim = hidden_dim
-        self.embedding = nn.Embedding(len(vocab),emb_dim,padding_idx=0)
+        self.embedding = nn.Embedding(len(vocab),emb_dim,padding_idx=2)
         self.lstm_cell = nn.LSTMCell(input_size = 1024,hidden_size = hidden_dim)
         self.linear = nn.Linear(hidden_dim,len(vocab))
 
@@ -179,19 +184,17 @@ class LSTM(nn.Module):
             A tensor of shape [batch_size, hidden_dim]
         '''
         batch_size = context_vec.shape[0]
-        if labels is None:
+        start_emb = self.embedding(torch.tensor([self.vocab.__getitem__("<SOS>")]*batch_size,dtype=torch.long).to(device)) #TODO: Check if this is even correct + Why is it that I have to do to(device) here?
+        if labels is None: #ie the case of pure inference
             total_time_steps = 650 #Max expected size of a formula?
-            start_emb = self.embedding(torch.tensor([self.vocab.__getitem__("$")]*batch_size,dtype=torch.long).to(device)) #TODO: Check if this is even correct + Why is it that I have to do to(device) here?
-            x_t = torch.concat((context_vec,start_emb),dim=1)
             tf = 0 #Avoid doing the label embedding step + pure prediction
-        else:
-            total_time_steps = labels.shape[1]
-            label_emb = self.embedding(labels)
-            x_t = torch.concat((context_vec,label_emb[:,0,:]),dim=1) # Concatanation of context vector and first index of label embedding of all batches (ie Batch_size x [0th index] x emb_dim)
+        else: #ie the case of training
+            total_time_steps = labels.shape[1] 
+            label_emb = self.embedding(labels) 
             tf = 0.5 #Teacher forcing probability
-        t = 0
+        x_t = torch.concat((context_vec,start_emb),dim=1) 
         h_t = c_t = context_vec
-        outputs = torch.zeros(batch_size,total_time_steps,len(self.vocab)) # TODO: Change variable name and updation
+        outputs = torch.zeros(batch_size,total_time_steps,len(self.vocab))
         for t in range(1,total_time_steps):
             h_t, c_t = self.lstm_cell(x_t,(h_t,c_t))
             output = self.linear(h_t)
@@ -269,8 +272,9 @@ if __name__ == '__main__':
 
     print("Loading Datasets...")
     dir_path = sys.argv[1]
-    model_save_path = dir_path + "/model.tar"
-    # dir_path = "./Dataset"
+    # dir_path = "/kaggle/input/converting-handwritten-equations-to-latex-code/col_774_A4_2023"
+    model_save_path = "./model.tar"
+    hw_model_save_path = "./model_hw.tar"
     batch_size = 64
     tr_syn,tr_syn_df = import_data(dir_path,True,"train",batch_size)
     t_syn,t_syn_df = import_data(dir_path,True,"test",1)
@@ -282,13 +286,11 @@ if __name__ == '__main__':
     print("Creating Vocabulary...")
     formula = np.array(tr_syn_df["formula"])
     vocab = vocabulary(formula)
-    # print(vocab.__getitem__("div"))
-
+    
     print("Initializing Model...")
     model = Latex_arch(vocab)
     criterion = nn.CrossEntropyLoss()
     optimizer = torch.optim.Adam(model.parameters(),lr=1e-3) 
-    loss = 0
 
     # Load model if it exists
     if os.path.exists(model_save_path):
@@ -304,10 +306,11 @@ if __name__ == '__main__':
     optimizer_to(optimizer,device)
     # criterion.to(device)
 
-    num_epochs = 25
-    print("Finetuning Model for Handwritten Data...")
+    num_epochs = 100
+    print("Fine Tuning for HandWritten Data...")
     for epoch in range(num_epochs):
-        for i,(images,labels) in enumerate(tr_hw):
+        train_loss = 0
+        for i,(images,labels) in enumerate(tqdm(tr_hw)): #Could do as tqdm(tr_syn) to get a progress bar 
             model.train() # Set model to training mode
             images = images.to(device)
             tensor_labels = labels_to_tensor(labels,vocab).to(device)
@@ -318,28 +321,25 @@ if __name__ == '__main__':
                             'model_state_dict': model.state_dict(),
                             'optimizer_state_dict': optimizer.state_dict(),
                             'loss': loss,
-                            }, model_save_path)
+                            }, hw_model_save_path)
 
-            model.zero_grad()
             output = model.latex_forward(images,tensor_labels).to(device)
+
             loss = criterion(output.reshape(output.shape[0],output.shape[2],output.shape[1]),tensor_labels)  #NOTE: The reshaping is due to definition of cross-entropy
             loss.backward()
             optimizer.step()
+            optimizer.zero_grad()
  
-            ground_truths = labels_to_latex(tensor_labels,vocab)
-            predictions = prediction_to_latex(output,vocab)
-
-            bleu_score = get_scores(predictions, ground_truths)
-
-            print(f'Epoch [{epoch+1}/{num_epochs}], Step [{i+1}/{len(tr_hw)}], Macro Bleu: {bleu_score}, Loss: {loss.item():.4f}')
+            train_loss += loss.item()
+        print(f'Epoch [{epoch+1}/{num_epochs}], Avg Batch Loss: {train_loss/len(tr_syn)}')
 
     print('''Testing Model...''')
-    test_datas = [t_syn,v_syn,t_hw,val_hw]
-    test_data_names = {t_syn:"Synthetic Testing",v_syn:"Synthetic Validation",t_hw:"Handwritten Test",val_hw:"Handwritten Validation"}
+    test_datas = [v_syn,t_syn,val_hw]
+    test_data_names = {v_syn:"Synthetic Validation",t_syn:"Synthetic Test",val_hw:"Handwritten Validation"}
     for test_data in test_datas:
         ground_truths = []
         predictions = []
-        for i,(images,labels) in enumerate(test_data):
+        for i,(images,labels) in enumerate(tqdm(test_data)):
             model.eval() # Set model to evaluation mode
             images = images.to(device)
             tensor_labels = labels_to_tensor(labels,vocab).to(device)
@@ -347,15 +347,14 @@ if __name__ == '__main__':
 
             present_ground_truths = labels_to_latex(tensor_labels,vocab)
             present_predictions = prediction_to_latex(output,vocab)
-            print(f'Ground Truth: {tensor_labels[0].cpu().numpy()}')
-            print(f'Prediction: {torch.argmax(output[0],dim=1).cpu().numpy()}')
+            #print(f'Ground Truth: {present_ground_truths}')
+            #print(f'Prediction: {present_predictions}')
             ground_truths.extend(present_ground_truths)
             predictions.extend(present_predictions)
 
-            bleu_score_iter = get_scores(predictions, ground_truths)
+            bleu_score_iter = sbleu(predictions, ground_truths)
             
             print(f'Current Macro Bleu for batch {i}: {bleu_score_iter}')
             print("\n")
-        total_bleu_score = get_scores(predictions, ground_truths)
+        total_bleu_score = sbleu(predictions, ground_truths)
         print(f'Total Macro Bleu for {test_data_names[test_data]}: {total_bleu_score}')
-
